@@ -1,4 +1,6 @@
 \documentclass{article}
+  \usepackage{pgfplots}
+  \pgfplotsset{compat=1.5.1} % 用来保证双 y 轴时两个 y 轴的 label 正确显示
 
   \input{../../.template/structure.tex} % Include the file specifying the document structure and custom commands
 
@@ -12,7 +14,7 @@
   \title{\Large 分布式并行计算课程作业 \#1 \\
   \LARGE 埃拉托斯特尼素数筛选算法并行及性能优化} % Title of the assignment
   
-  \author{杨睿妮\\ \texttt{2018011205014} \\ \url{yangruinii@foxmail.com}} % Author name and email address
+  \author{杨睿妮 \texttt{(2018011205014)} \\ \url{yangruinii@foxmail.com}} % Author name and email address
   
   \date{电子科技大学 --- \today} % University, school and/or department name(s) and a date
   
@@ -29,7 +31,115 @@
   \end{itemize}
 
   \section{实验环境}
+  实验环境如表 \ref{tab:env} 所示。
+  \begin{table}[htbp]
+    \centering
+    \caption{实验环境配置表}
+    \label{tab:env}
+    \begin{tabular}{ll}
+      \hline
+      处理器 & lntel(R) Core(TM) i5-8300H CPU @2.30GHz \\
+      \hline
+      内存 & 16GB \\
+      \hline
+      MPI 库 & Open MPI 2.1.1\\
+      \hline
+      操作系统 & Ubuntu 18.04 LTS \\
+      \hline
+    \end{tabular}
+  \end{table}
+  
+  其中 Open MPI 环境使用如下命令配置：
+  \begin{commandline}
+    \begin{verbatim}
+$ sudo apt install openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
+    \end{verbatim}
+\end{commandline}
+
+并使用以下命令编译和运行基准代码，以使用四线程求解 1000 以内的素数个数为例：
+\begin{commandline}
+  \begin{verbatim}
+$ mpic++ baseline.c -o baseline.o
+$ mpirun -np 4 ./baseline.o 1000
+  \end{verbatim}
+\end{commandline}
 
   \section{程序说明}
+  \subsection{基准代码 Bug 修改}
+  首先我们编译基准代码，以试运行求解 $10^9$ 以内的素数个数。发现在单线程下，可以正常求解 $10^9$ 以内素数个数，但是在多线程的情况下，只能够求解 $10^8$ 以内的素数个数，在求解 $10^9$及以上的规模时，程序输出 \lstinline{Cannot allocate enough memory}，查看基准代码后，发现在分配 \verb|marked| 数组时出现内存申请错误。
 
+  进一步定位错误，发现 \verb|size| 变量存在溢出问题。解决方法为修改与 \verb|size| 相关的变量为 \verb|long| 类型。 修改后的相关源码如下：
+  \begin{file}[baseline.cpp]
+    \begin{lstlisting}[language=C++]
+// ...
+long high_value; 
+long low_value;
+long size;
+long proc0_size;
+// ...
+proc0_size = (n - 1) / p;
+low_value = 2 + id * proc0_size;
+high_value = 1 + (id + 1) * proc0_size;
+size = high_value - low_value + 1;
+// ...
+    \end{lstlisting}
+  \end{file}
+
+  至此基准代码可以正常求解 $10^9$ 级别素数的个数问题。
+
+  \subsection{基准代码性能分析}
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+      \pgfplotsset{
+        width=0.8\textwidth,
+        height=0.25\textwidth,
+        set layers,
+      }
+      \begin{axis}[
+        scale only axis,
+        xmin = 0, xmax = 17,
+        xlabel = 进程数量,
+        ylabel = 耗时（s）,
+        axis y line*= left,
+      ]
+        \addplot+[smooth]
+         coordinates
+        {
+          (1,17.1) (2,9.2) (4,7.2)
+          (8,6.1) (16,5.1)
+        };
+        \label{plot:base_time}
+        % \addlegendentry{耗时}
+      \end{axis}
+
+      \begin{axis}[
+        scale only axis,
+        ymin = 0.5, ymax = 5,
+        xmin = 0, xmax = 17,
+        axis y line* = right,
+        ylabel = 加速比
+      ]
+        \addlegendimage{/pgfplots/refstyle=plot:base_time}\addlegendentry{耗时}
+        \addplot+[
+          smooth,
+          color=red
+        ]
+        coordinates
+        {
+          (1,1) (2,1.8) (4,2.1)
+          (8,2.5) (16,3.4)
+        };
+        \addlegendentry{加速比}
+      \end{axis}
+    \end{tikzpicture}
+    \label{fig:baseline}
+    \caption{基准代码在不同线程下的运行时间和加速比}
+  \end{figure}
+
+  \subsection{性能优化：去除偶数优化}
+
+  \subsection{性能优化：消除广播优化}
+
+  \subsection{性能优化：Cache 优化}
 \end{document}

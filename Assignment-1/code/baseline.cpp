@@ -8,17 +8,17 @@ int main(int argc, char *argv[])
   double elapsed_time; /* Parallel execution time */
   int first;           /* Index of first multiple */
   int global_count;    /* Global prime count */
-  int high_value;      /* Highest value on this proc */
+  long high_value;      /* Highest value on this proc */
   int i;
   int id;         /* Process ID number */
   int index;      /* Index of current prime */
-  int low_value;  /* Lowest value on this proc */
-  char *marked;   /* Portion of 2,...,'n' */
+  long low_value;  /* Lowest value on this proc */
+  bool *marked;   /* Portion of 2,...,'n' */
   int n;          /* Sieving from 2, ..., 'n' */
   int p;          /* Number of processes */
-  int proc0_size; /* Size of proc 0's subarray */
+  long proc0_size; /* Size of proc 0's subarray */
   int prime;      /* Current prime */
-  int size;       /* Elements in 'marked' */
+  long size;       /* Elements in 'marked' */
   MPI_Init(&argc, &argv);
   /* Start the timer */
   MPI_Comm_rank(MPI_COMM_WORLD, &id);
@@ -36,12 +36,12 @@ int main(int argc, char *argv[])
   /* Figure out this process's share of the array, as
 well as the integers represented by the first and
 last array elements */
-  low_value = 2 + id * (n - 1) / p;
-  high_value = 1 + (id + 1) * (n - 1) / p;
+  proc0_size = (n - 1) / p;
+  low_value = 2 + id * proc0_size;
+  high_value = 1 + (id + 1) * proc0_size;
   size = high_value - low_value + 1;
   /* Bail out if all the primes used for sieving are
 not all held by process 0 */
-  proc0_size = (n - 1) / p;
   if ((2 + proc0_size) < (int)sqrt((double)n))
   {
     if (!id)
@@ -51,7 +51,7 @@ not all held by process 0 */
   }
 
   /* Allocate this process's share of the array. */
-  marked = (char *)malloc(size);
+  marked = (bool *)malloc(size);
   if (marked == NULL)
   {
     printf("Cannot allocate enough memory\n");

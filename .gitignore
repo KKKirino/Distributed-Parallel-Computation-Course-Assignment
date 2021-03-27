@@ -3,3 +3,5 @@
 
 *.pdf
 *.o
+
+*.synctex.gz
