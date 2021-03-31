@@ -4,20 +4,20 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 int main(int argc, char *argv[])
 {
-  int count;           /* Local prime count */
+  long count;           /* Local prime count */
   double elapsed_time; /* Parallel execution time */
   int first;           /* Index of first multiple */
-  int global_count;    /* Global prime count */
-  long high_value;      /* Highest value on this proc */
+  long global_count;    /* Global prime count */
+  long high_value;     /* Highest value on this proc */
   int i;
-  int id;         /* Process ID number */
-  int index;      /* Index of current prime */
+  int id;          /* Process ID number */
+  int index;       /* Index of current prime */
   long low_value;  /* Lowest value on this proc */
-  bool *marked;   /* Portion of 2,...,'n' */
-  int n;          /* Sieving from 2, ..., 'n' */
-  int p;          /* Number of processes */
+  bool *marked;    /* Portion of 2,...,'n' */
+  int n;           /* Sieving from 2, ..., 'n' */
+  int p;           /* Number of processes */
   long proc0_size; /* Size of proc 0's subarray */
-  int prime;      /* Current prime */
+  int prime;       /* Current prime */
   long size;       /* Elements in 'marked' */
   MPI_Init(&argc, &argv);
   /* Start the timer */
@@ -89,7 +89,7 @@ not all held by process 0 */
   for (i = 0; i < size; i++)
     if (!marked[i])
       count++;
-  if (p > 1)
+  if (p >= 1)
     MPI_Reduce(&count, &global_count, 1, MPI_INT, MPI_SUM,
                0, MPI_COMM_WORLD);
   /* Stop the timer */
