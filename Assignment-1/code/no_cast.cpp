@@ -47,35 +47,45 @@ int main(int argc, char *argv[])
 
   bool *marked = new bool[proc_array_size](); // 标记数组
 
-  // 1. 直接从 3 开始进行计算
-  for (long prime = 3; prime * prime <= n;)
-  {
-    // 确定本线程的开始素数
-    long first = (low_range / prime) * prime;
-    for (int x = first; x < high_range; x += prime)
-    {
-      // 跳过没有在范围内的数字，以及素数本身
-      if (x < low_range || x == prime || x % 2 == 0)
-        continue; // 2. 跳过偶数标记，40% 左右的性能提升，主要来自于访存优化
-      marked[x - low_range] = 1;
+  // 计算前 sqrt(n) 个素数
+  int sqrtn = (int)sqrtl(n) + 1;
+  bool *sqn_mark = new bool[sqrtn]();
+  for (int prime = 2; prime * prime < sqrtn; prime += 1) {
+    if (marked[prime]) continue;
+    for (int i = 2; i * prime < sqrtn; i += 1) {
+      sqn_mark[i * prime] = 1;
     }
-
-    if (!pid)
-    {
-      // 找到下一个素数，并广播
-      do {
-        prime += 1 + (prime % 2); // 3. 寻找素数时跳过偶数
-      } while (prime < high_range && marked[prime]);
-    }
-
-    MPI_Bcast(&prime, 1, MPI_INT, 0, MPI_COMM_WORLD);
   }
 
-  // 保证从 2 开始计数
-  for (int i = max(2l, low_range); i < high_range; i += 1 + (i % 2))
+  double time = MPI_Wtime();
+
+  // 过滤所有的素数
+  for (long prime = 3; prime * prime <= high_range;) {
+    // 确定本线程的开始素数
+    long first = (low_range / prime) * prime;
+    long offset = 0;
+    for (int x = first; x < high_range; x += prime)
+    {
+      offset = x - low_range;
+      // 跳过没有在范围内的数字，以及素数本身
+      if (x < low_range || x == prime || x % 2 == 0)
+        continue; // 跳过偶数标记
+      marked[offset] = 1; // TODO: 这里很耗时，访存时间很难优化
+    }
+
+    // 找到下一个素数
+    do {
+      prime += 1 + (prime % 2); // 寻找素数时跳过偶数
+    } while (prime < high_range && sqn_mark[prime]);
+  }
+
+  printf("find: %ld %f\n", proc_array_size, MPI_Wtime() - time);
+
+  // 保证从 3 开始计数
+  for (int i = max(3l, low_range); i < high_range; i += 1 + (i % 2))
   {
-    // 4. 统计数字时同样跳过偶数
-    count += !marked[i - low_range] && (i & 1);
+    // 统计数字时同样跳过偶数
+    count += !marked[i - low_range] && (i % 2);
   }
 
   // 求解所有素数个数和
