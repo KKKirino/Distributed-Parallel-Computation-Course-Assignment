@@ -83,9 +83,10 @@
 % \end{commandline}
 
 \mdfdefinestyle{commandline}{
-	leftmargin=10pt,
-	rightmargin=10pt,
-	innerleftmargin=15pt,
+	innertopmargin=\baselineskip,
+	leftmargin=0pt,
+	rightmargin=0pt,
+	innerleftmargin=5pt,
 	middlelinecolor=black!50!white,
 	middlelinewidth=2pt,
 	frametitlerule=false,
@@ -94,6 +95,7 @@
 	frametitlefont={\normalfont\sffamily\color{white}\hspace{-1em}},
 	frametitlebackgroundcolor=black!50!white,
 	nobreak,
+	font=\small
 }
 
 % Define a custom environment for command-line snapshots
@@ -115,12 +117,12 @@
 % \end{file}
 
 \mdfdefinestyle{file}{
-	innertopmargin=1.6\baselineskip,
+	innertopmargin=\baselineskip,
 	innerbottommargin=0.8\baselineskip,
 	topline=false, bottomline=false,
 	leftline=false, rightline=false,
-	leftmargin=1cm,
-	rightmargin=1cm,
+	leftmargin=0cm,
+	rightmargin=0cm,
 	singleextra={%
 		\draw[fill=black!10!white](P)++(0,-1.2em)rectangle(P-|O);
 		\node[anchor=north west]
@@ -131,6 +133,7 @@
 		\draw(O-|P)++(-\l,0)--++(0,\l)--++(\l,0);
 	},
 	nobreak,
+	font=\small
 }
 
 % Define a custom environment for file contents
@@ -243,7 +246,10 @@
 \usepackage{subfigure}
 \usepackage{url}
 \usepackage{flushend, cuted}
+\usepackage{color}
+\usepackage{enumitem} 
+
 \XeTeXlinebreaklocale "zh"
 \XeTeXlinebreakskip = 0pt plus 1pt
-
-\usepackage{color}
+\setlength{\parindent}{2em} % 2em 代表首行缩进两个字符
+% \linespread{1.2} % 设置行间距

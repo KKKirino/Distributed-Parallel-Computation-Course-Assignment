@@ -1,4 +1,4 @@
-\documentclass{article}
+\documentclass[11pt]{article}
   \usepackage{pgfplots}
   \pgfplotsset{compat=1.5.1} % 用来保证双 y 轴时两个 y 轴的 label 正确显示
 
@@ -6,6 +6,10 @@
 
   % 如果提示没有字体，请修改此处的字体路径为当前编译文件的相对路径
   \setmainfont[ExternalLocation=../../.template/]{STZHONGS.ttf}
+
+  % 用于在代码内显示中文
+  \usepackage{xeCJK}
+  \setCJKmonofont[ExternalLocation=../../.template/]{STZHONGS.ttf}
   
   %----------------------------------------------------------------------------------------
   %	ASSIGNMENT INFORMATION
@@ -138,9 +142,92 @@ size = high_value - low_value + 1;
   
   \end{figure}
 
-  \subsection{性能优化：去除偶数优化}
+  \section{性能优化}
+  \subsection{性能优化：去除偶数}
+  我们使用对基线代码重构并在不同的地方对偶数进行过滤，主要有以下四处修改：
+  \begin{enumerate}[itemindent=1em]
+    \item 在确定作为筛的素数时，直接从 3 开始，从而跳过偶数；
+    \item 在对素数的倍数进行标记时，直接跳过偶数；
+    \item 在寻找下一个素数筛时，仅对奇数位标志进行检验；
+    \item 在统计素数个数时，同样地只对奇数进行计算。
+  \end{enumerate}
 
-  \subsection{性能优化：消除广播优化}
+  核心代码如下所示，完整代码可查阅附录。
 
-  \subsection{性能优化：Cache 优化}
+  \begin{file}[no\_even.cpp]
+    \begin{lstlisting}[language=C++]
+// ...
+bool *marked = new bool[proc_array_size](); // 标记数组
+
+// 1. 直接从 3 开始进行计算，从而跳过偶数判定
+for (long prime = 3; prime * prime <= n;)
+{
+  // 确定本线程的开始素数
+  long first = (low_range / prime) * prime;
+  for (int x = first; x < high_range; x += prime)
+  {
+    // 跳过没有在范围内的数字，以及素数本身
+    if (x < low_range || x == prime || x % 2 == 0)
+      continue; // 2. 跳过偶数，40% 左右的性能提升
+    marked[x - low_range] = 1;
+  }
+
+  if (!pid)
+  {
+    do {
+      prime += 1 + (prime % 2); // 3. 寻找素数时跳过偶数
+    } while (prime < high_range && marked[prime]);
+  }
+
+  // 广播找到的下一个素数
+  MPI_Bcast(&prime, 1, MPI_INT, 0, MPI_COMM_WORLD);
+}
+
+// 保证从 3 开始计数
+for (int i = low_range; i < high_range; i += 1 + (i % 2))
+{
+  if (i < 3) continue;
+  // 4. 统计数字时同样跳过偶数
+  count += !marked[i - low_range] && (i % 2);
+}
+// ...
+    \end{lstlisting}
+  \end{file}
+  性能分析：TODO
+
+  \subsection{性能优化：消除广播}
+  在偶数优化后的代码基础上，我们在每个线程内预先地计算前 $\sqrt{n}$ 个素数，然后再对每个区间端进行筛选，从而免去了素数广播耗时，预计算部分为：
+  \begin{file}[baseline.cpp]
+    \begin{lstlisting}[language=C++]
+// ...
+// 计算前 sqrt(n) 个素数
+int sqrtn = (int)sqrtl(n) + 1;
+bool *sqn_mark = new bool[sqrtn]();
+for (int prime = 2; prime * prime < sqrtn; prime += 1) {
+  if (marked[prime]) continue;
+  for (int i = 2; i * prime < sqrtn; i += 1) {
+    sqn_mark[i * prime] = 1;
+  }
+}
+// ...
+    \end{lstlisting}
+  \end{file}
+  然后在寻找下一个素数时，只需要在 \verb|sqn_mark| 数组中寻找即可：
+  \begin{file}[baseline.cpp]
+    \begin{lstlisting}[language=C++]
+// 找到下一个素数
+do {
+  prime += 1 + (prime % 2); // 寻找素数时跳过偶数
+} while (prime < high_range && sqn_mark[prime]);
+    \end{lstlisting}
+  \end{file}
+  性能分析：TODO
+  \subsection{性能优化：Cache 访存}
+
+  \appendix
+  \section{附录：修复 Bug 后的基准代码}
+  \section{附录：重构基准代码}
+  \section{附录：偶数优化}
+  \section{附录：消除广播}
+  \section{附录：优化 Cache}
 \end{document}

@@ -5,4 +5,6 @@ do
   mpic++ ./no_even.cpp -o no_even.o && mpirun -np $p ./no_even.o 1000000000 | grep "SIEVE (0)"
   echo "No Cast: "
   mpic++ ./no_cast.cpp -o no_cast.o && mpirun -np $p ./no_cast.o 1000000000 | grep "SIEVE (0)"
+  echo "Better Cache: "
+  mpic++ ./better_cache.cpp -o better_cache.o && mpirun -np $p ./better_cache.o 1000000000 | grep "SIEVE (0)"
 done

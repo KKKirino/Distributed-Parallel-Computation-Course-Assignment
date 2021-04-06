@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
   int sqrtn = (int)sqrtl(n) + 1;
   bool *sqn_mark = new bool[sqrtn]();
   for (int prime = 2; prime * prime < sqrtn; prime += 1) {
-    if (sqn_mark[prime]) continue;
+    if (marked[prime]) continue;
     for (int i = 2; i * prime < sqrtn; i += 1) {
       sqn_mark[i * prime] = 1;
     }
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     {
       offset = x - low_range;
       // 跳过没有在范围内的数字，以及素数本身
-      if (x < low_range || x == prime || x % 2 == 0)
+      if (x < low_range || x == prime || x % 2 == 0 || x % 3 == 0)
         continue; // 跳过偶数标记
       marked[offset] = 1; // TODO: 这里很耗时，访存时间很难优化
     }
@@ -87,10 +87,10 @@ int main(int argc, char *argv[])
   printf("(%ld) in loop / total: %f / %f \n", proc_array_size, in_time, MPI_Wtime() - time);
 
   // 保证从 3 开始计数
-  for (int i = max(3l, low_range); i < high_range; i += 1 + (i % 2))
+  for (int i = max(5l, low_range); i < high_range; i += 1 + (i % 2))
   {
     // 统计数字时同样跳过偶数
-    count += !marked[i - low_range] && (i % 2);
+    count += !marked[i - low_range] && (i % 2) && (i % 3);
   }
 
   // 求解所有素数个数和
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 
   if (!pid)
   {
-    global_count += (n >= 2l); // 把 2 计算进去
+    global_count += (n >= 2l) + (n >= 3l); // 把 2 和 3 计算进去
     printf("There are %ld primes less than or equal to %ld\n",
            global_count, n);
     printf("SIEVE (%d) %10.6f\n", pid, timer);
