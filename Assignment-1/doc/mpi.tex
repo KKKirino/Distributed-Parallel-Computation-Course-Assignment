@@ -63,6 +63,7 @@ $ sudo apt install openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
 并使用以下命令编译和运行基准代码，以使用四线程求解 1000 以内的素数个数为例：
 \begin{commandline}
   \begin{verbatim}
+$ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope # 关闭报错显示
 $ mpic++ baseline.c -o baseline.o
 $ mpirun -np 4 ./baseline.o 1000
   \end{verbatim}
@@ -76,6 +77,8 @@ $ mpirun -np 4 ./baseline.o 1000
   \begin{file}[baseline.cpp]
     \begin{lstlisting}[language=C++]
 // ...
+long count = 0;
+long global_count = 0; // 正确初始化两个 count 变量
 long high_value; 
 long low_value;
 long size;

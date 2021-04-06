@@ -1,106 +1,95 @@
-#include "mpi.h"
+#include <mpi.h>
 #include <math.h>
-#include <stdio.h>
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#include <iostream>
+
+using namespace std;
+
 int main(int argc, char *argv[])
 {
-  long count;           /* Local prime count */
-  double elapsed_time; /* Parallel execution time */
-  int first;           /* Index of first multiple */
-  long global_count;    /* Global prime count */
-  long high_value;     /* Highest value on this proc */
-  int i;
-  int id;          /* Process ID number */
-  int index;       /* Index of current prime */
-  long low_value;  /* Lowest value on this proc */
-  bool *marked;    /* Portion of 2,...,'n' */
-  int n;           /* Sieving from 2, ..., 'n' */
-  int p;           /* Number of processes */
-  long proc0_size; /* Size of proc 0's subarray */
-  int prime;       /* Current prime */
-  long size;       /* Elements in 'marked' */
+  long count = 0, global_count = 0; // 素数个数
+  int pid, pcount;                  // 线程 id 和线程总数
+
+  // 初始化 mpi 环境
   MPI_Init(&argc, &argv);
-  /* Start the timer */
-  MPI_Comm_rank(MPI_COMM_WORLD, &id);
-  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &pid);    // 获取当前线程 id
+  MPI_Comm_size(MPI_COMM_WORLD, &pcount); // 总线程数量
   MPI_Barrier(MPI_COMM_WORLD);
-  elapsed_time = -MPI_Wtime();
+
   if (argc != 2)
   {
-    if (!id)
+    if (!pid)
+    {
       printf("Command line: %s <m>\n", argv[0]);
-    MPI_Finalize();
-    exit(1);
-  }
-  n = atoi(argv[1]);
-  /* Figure out this process's share of the array, as
-well as the integers represented by the first and
-last array elements */
-  proc0_size = (n - 1) / p;
-  low_value = 2 + id * proc0_size;
-  high_value = 1 + (id + 1) * proc0_size;
-  size = high_value - low_value + 1;
-  /* Bail out if all the primes used for sieving are
-not all held by process 0 */
-  if ((2 + proc0_size) < (int)sqrt((double)n))
-  {
-    if (!id)
-      printf("Too many processes\n");
-    MPI_Finalize();
-    exit(1);
+      MPI_Finalize();
+    }
+    return -1;
   }
 
-  /* Allocate this process's share of the array. */
-  marked = (bool *)malloc(size);
-  if (marked == NULL)
+  long n = atol(argv[1]);      // 素数总量
+  double timer = -MPI_Wtime(); // 计时开始
+
+  // 计算每个线程掌管的数据段
+  long proc_size = n / pcount;             // 每个线程的尺寸
+  long low_range = pid * proc_size;        // 线程负责的开始位置
+  long high_range = (pid + 1) * proc_size; // 线程负责的终止位置
+  long proc_array_size = proc_size + 1;    // 线程标记数组大小
+
+  // 限制线程数量在 sqrt(n) 以内，所以保证线程 0 可以获取到所有素数
+  if (proc_size + 2 < (long)sqrtl(n))
   {
-    printf("Cannot allocate enough memory\n");
+    if (!pid)
+    {
+      printf("Too many processes\n");
+    }
     MPI_Finalize();
-    exit(1);
+    return -1;
   }
-  for (i = 0; i < size; i++)
-    marked[i] = 0;
-  if (!id)
-    index = 0;
-  prime = 2;
-  do
+
+  bool *marked = new bool[proc_array_size](); // 标记数组
+
+  // 1. 直接从 3 开始进行计算
+  for (long prime = 2; prime * prime <= n;)
   {
-    if (prime * prime > low_value)
-      first = prime * prime - low_value;
-    else
+    // 确定本线程的开始素数
+    long first = (low_range / prime) * prime;
+    for (int x = first; x < high_range; x += prime)
     {
-      if (!(low_value % prime))
-        first = 0;
-      else
-        first = prime - (low_value % prime);
+      // 跳过没有在范围内的数字，以及素数本身
+      if (x < low_range || x == prime)
+        continue;
+      marked[x - low_range] = 1;
     }
-    for (i = first; i < size; i += prime)
-      marked[i] = 1;
-    if (!id)
+
+    if (!pid)
     {
-      while (marked[++index])
-        ;
-      prime = index + 2;
+      // 找到下一个素数，并广播
+      do {
+        prime += 1;
+      } while (prime < high_range && marked[prime]);
     }
-    if (p > 1)
-      MPI_Bcast(&prime, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  } while (prime * prime <= n);
-  count = 0;
-  for (i = 0; i < size; i++)
-    if (!marked[i])
-      count++;
-  if (p >= 1)
-    MPI_Reduce(&count, &global_count, 1, MPI_INT, MPI_SUM,
-               0, MPI_COMM_WORLD);
-  /* Stop the timer */
-  elapsed_time += MPI_Wtime();
-  /* Print the results */
-  if (!id)
+
+    MPI_Bcast(&prime, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  }
+
+  // 保证从 2 开始计数
+  for (int i = max(2l, low_range); i < high_range; i += 1)
   {
-    printf("There are %d primes less than or equal to %d\n",
+    count += !marked[i - low_range];
+  }
+
+  // 求解所有素数个数和
+  MPI_Reduce(&count, &global_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  // 停止计时
+  timer += MPI_Wtime();
+
+  if (!pid)
+  {
+    printf("There are %ld primes less than or equal to %ld\n",
            global_count, n);
-    printf("SIEVE (%d) %10.6f\n", p, elapsed_time);
+    printf("SIEVE (%d) %10.6f\n", pid, timer);
   }
+
   MPI_Finalize();
   return 0;
 }
