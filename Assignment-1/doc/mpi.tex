@@ -36,7 +36,7 @@
 
   \section{实验环境}
   实验环境如表 \ref{tab:env} 所示。
-  \begin{table}[htbp]
+  \begin{table}[h]
     \centering
     \caption{实验环境配置表}
     \label{tab:env}
@@ -94,13 +94,36 @@ size = high_value - low_value + 1;
 
   至此基准代码可以正常求解 $10^9$ 级别素数的个数问题。
 
+  \subsection{重构基准代码}
+  由于实验指导书中给出的基准代码在确定起始素数时较为繁琐（即附录\ref{apd:fixed} 的 80 - 88 行代码），为了方便进行后续优化，我们对基准代码进行了重构，重构后的完整代码见附录 \ref{apd:refactored}。重构后的程序流程图如下：
+
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[node distance=10pt]
+      \node[draw, rounded corners]                        (input)   {输入 n};
+      \node[draw, below=of input]                         (step 1)  {初始化 MPI 环境并声明相关变量};
+      \node[draw, below=of step 1]                        (step 2)  {计算当前线程的区间 \verb|(low_range, high_range)|};
+      \node[draw, below=of step 2]                   (step 3)  {寻找下一个素数 \verb|prime|，并广播};
+      \node[draw, diamond, aspect=2, below=of step 3]     (choice)  {\verb|prime <= n|？};
+      \node[draw, right=30pt of choice]                   (step 3_1)  {使用 \verb|prime| 在区间内进行标记};
+      \node[draw, below=of choice]  (step 4)     {统计素数个数并汇总};
+      \node[draw, rounded corners, below=of step 4]  (end)     {结束};
+      
+      \graph{
+        (input) -> (step 1) -> (step 2) -> (step 3) -> (choice) ->["Yes"left] (step 4) -> (end);
+        (choice) ->["No"] (step 3_1) ->[to path={|- (\tikztotarget)}] (step 3);
+      };
+    \end{tikzpicture}
+  \end{figure}
+  后续的偶数优化、消除广播等改动均在重构的代码基础上进行修改。
+
   \subsection{基准代码性能分析}
   \begin{figure}[h]
     \centering
     \begin{tikzpicture}
       \pgfplotsset{
         width=0.8\textwidth,
-        height=0.25\textwidth,
+        height=0.2\textwidth,
         set layers,
       }
       \begin{axis}[
@@ -113,8 +136,7 @@ size = high_value - low_value + 1;
         \addplot+[smooth]
          coordinates
         {
-          (1,17.1) (2,9.2) (4,7.2)
-          (8,6.1) (16,5.1)
+          (1, 15.76) (2, 10.15) (4, 8.76) (8, 8.07) (16, 8.33)
         };
         \label{plot:base_time}
         % \addlegendentry{耗时}
@@ -134,16 +156,31 @@ size = high_value - low_value + 1;
         ]
         coordinates
         {
-          (1,1) (2,1.8) (4,2.1)
-          (8,2.5) (16,3.4)
+          (1, 1.00) (2, 1.55) (4, 1.80) (8, 1.95) (16, 1.89)
         };
         \addlegendentry{加速比}
       \end{axis}
     \end{tikzpicture}
     \label{fig:baseline}
     \caption{基准代码在不同线程下的运行时间和加速比}
-  
   \end{figure}
+
+  \begin{table}[h]
+    \centering
+    \caption{基准代码性能数据}
+    \label{tab:baseline}
+    \begin{tabular}{cccccc}
+      \hline
+      线程数 & 1 & 2 & 4 & 8 & 16 \\
+      \hline
+      耗时（s） & 15.76 & 10.15 & 8.76 & 8.07 & 8.33 \\
+      \hline
+      加速比 & 1.00 & 1.55 & 1.80 & 1.95 & 1.89 \\
+      \hline
+    \end{tabular}
+  \end{table}
+
+  我们分别在 $1, 2, 4, 8, 16$ 进程规模下运行了基准代码，并得到了程序运行时间和加速比，结果如图 \ref{fig:baseline} 所示，可以看到，当线程数量较少时，多线程可以有效减少运行时间，但是随着线程数增多，加速比并没有随着线程数量线性增长，这是由于基准代码的广播和线程同步机制，每完成一轮素数筛选，其余线程均需要等待线程 0 广播下一个素数，从而造成额外的时间开销。
 
   \section{性能优化}
   \subsection{性能优化：去除偶数}
@@ -155,7 +192,7 @@ size = high_value - low_value + 1;
     \item 在统计素数个数时，同样地只对奇数进行计算。
   \end{enumerate}
 
-  核心代码如下所示，完整代码可查阅附录。
+  核心代码如下所示，完整代码可查阅附录 \ref{apd:no_even}。
 
   \begin{file}[no\_even.cpp]
     \begin{lstlisting}[language=C++]
@@ -196,7 +233,70 @@ for (int i = low_range; i < high_range; i += 1 + (i % 2))
 // ...
     \end{lstlisting}
   \end{file}
-  性能分析：TODO
+
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+      \pgfplotsset{
+        width=0.8\textwidth,
+        height=0.2\textwidth,
+        set layers,
+      }
+      \begin{axis}[
+        scale only axis,
+        xmin = 0, xmax = 17,
+        xlabel = 进程数量,
+        ylabel = 耗时（s）,
+        axis y line*= left,
+      ]
+        \addplot+[smooth]
+         coordinates
+        {
+          (1, 10.33) (2, 6.56) (4, 5.26) (8, 5.00) (16, 5.14)
+        };
+        \label{plot:base_time}
+        % \addlegendentry{耗时}
+      \end{axis}
+
+      \begin{axis}[
+        scale only axis,
+        ymin = 0.5, ymax = 5,
+        xmin = 0, xmax = 17,
+        axis y line* = right,
+        ylabel = 加速比
+      ]
+        \addlegendimage{/pgfplots/refstyle=plot:base_time}\addlegendentry{耗时}
+        \addplot+[
+          smooth,
+          color=red
+        ]
+        coordinates
+        {
+          (1, 1.00) (2, 1.58) (4, 1.96) (8, 2.07) (16, 2.01)
+        };
+        \addlegendentry{加速比}
+      \end{axis}
+    \end{tikzpicture}
+    \label{fig:no_even}
+    \caption{去除偶数后在不同线程下的运行时间和加速比}
+  \end{figure}
+
+  \begin{table}[h]
+    \centering
+    \caption{去除偶数后的性能数据}
+    \label{tab:no_even}
+    \begin{tabular}{cccccc}
+      \hline
+      线程数 & 1 & 2 & 4 & 8 & 16 \\
+      \hline
+      耗时（s） & 10.33 & 6.56 & 5.26 & 5.00 & 5.14 \\
+      \hline
+      加速比 & 1.00 & 1.58 & 1.96 & 2.07 & 2.01 \\
+      \hline
+    \end{tabular}
+  \end{table}
+  图 \ref{fig:no_even} 和表 \ref{tab:no_even} 展示了去除偶数后的运行时间和加速比。相对于基准代码，跳过偶数可以带来 30\% - 40\% 的性能提升。
+
 
   \subsection{性能优化：消除广播}
   在偶数优化后的代码基础上，我们在每个线程内预先地计算前 $\sqrt{n}$ 个素数，然后再对每个区间端进行筛选，从而免去了素数广播耗时，预计算部分为：
@@ -224,13 +324,158 @@ do {
 } while (prime < high_range && sqn_mark[prime]);
     \end{lstlisting}
   \end{file}
-  性能分析：TODO
-  \subsection{性能优化：Cache 访存}
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+      \pgfplotsset{
+        width=0.8\textwidth,
+        height=0.2\textwidth,
+        set layers,
+      }
+      \begin{axis}[
+        scale only axis,
+        xmin = 0, xmax = 17,
+        xlabel = 进程数量,
+        ylabel = 耗时（s）,
+        axis y line*= left,
+      ]
+        \addplot+[smooth]
+         coordinates
+        {
+          (1, 11.22) (2, 6.82) (4, 5.75) (8, 4.88) (16, 4.59)
+        };
+        \label{plot:base_time}
+        % \addlegendentry{耗时}
+      \end{axis}
 
+      \begin{axis}[
+        scale only axis,
+        ymin = 0.5, ymax = 5,
+        xmin = 0, xmax = 17,
+        axis y line* = right,
+        ylabel = 加速比
+      ]
+        \addlegendimage{/pgfplots/refstyle=plot:base_time}\addlegendentry{耗时}
+        \addplot+[
+          smooth,
+          color=red
+        ]
+        coordinates
+        {
+          (1, 1.00) (2, 1.64) (4, 1.95) (8, 2.30) (16, 2.44)
+        };
+        \addlegendentry{加速比}
+      \end{axis}
+    \end{tikzpicture}
+    \label{fig:no_cast}
+    \caption{消除广播后在不同线程下的运行时间和加速比}
+  \end{figure}
+
+  \begin{table}[h]
+    \centering
+    \caption{消除广播后的性能数据}
+    \label{tab:no_cast}
+    \begin{tabular}{cccccc}
+      \hline
+      线程数 & 1 & 2 & 4 & 8 & 16 \\
+      \hline
+      耗时（s） & 11.22 & 6.82 & 5.75 & 4.88 & 4.59 \\
+      \hline
+      加速比 & 1.00 & 1.64 & 1.95 & 2.30 & 2.44 \\
+      \hline
+    \end{tabular}
+  \end{table}
+  图 \ref{fig:no_cast} 和表 \ref{tab:no_cast} 展示了消除广播后的运行时间和加速比。当线程数较少时，相对于优化前的代码，其运行耗时反而更久，其原因是预计算前 $\sqrt{N}$ 区间内的素数会引入额外耗时，而当线程数量增加后，避免广播同步带来的耗时减少抵消了预计算的耗时，总耗时得以下降，最终可以带来 10\% 的性能提升。
+
+  \subsection{性能优化：Cache 优化}
+  在偶数优化章节中，我们发现跳过偶数可以带来接近 40\% 的性能提升，进一步探究可以发现，整个算法最耗时的部分在于对 \verb|marked| 数组的访问，经过埋点计时发现，对 \verb|marked| 数组的访问耗时占了整个算法总耗时的 90\% 左右，所以通过优化 \verb|marked| 的访存，我们可以进一步提升程序性能。
+
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+      \pgfplotsset{
+        width=0.8\textwidth,
+        height=0.2\textwidth,
+        set layers,
+      }
+      \begin{axis}[
+        scale only axis,
+        xmin = 0, xmax = 17,
+        xlabel = 进程数量,
+        ylabel = 耗时（s）,
+        axis y line*= left,
+      ]
+        \addplot+[smooth]
+         coordinates
+        {
+          (1, 9.79) (2, 4.98) (4, 2.66) (8, 2.09) (16, 2.27)
+        };
+        \label{plot:base_time}
+        % \addlegendentry{耗时}
+      \end{axis}
+
+      \begin{axis}[
+        scale only axis,
+        ymin = 0.5, ymax = 5,
+        xmin = 0, xmax = 17,
+        axis y line* = right,
+        ylabel = 加速比
+      ]
+        \addlegendimage{/pgfplots/refstyle=plot:base_time}\addlegendentry{耗时}
+        \addplot+[
+          smooth,
+          color=red
+        ]
+        coordinates
+        {
+          (1, 1.00) (2, 1.97) (4, 3.68) (8, 4.69) (16, 4.32)
+        };
+        \addlegendentry{加速比}
+      \end{axis}
+    \end{tikzpicture}
+    \label{fig:no_even}
+    \caption{Cache 优化后在不同线程下的运行时间和加速比}
+  \end{figure}
+
+  \begin{table}[h]
+    \centering
+    \caption{Cache 优化后的性能数据}
+    \label{tab:env}
+    \begin{tabular}{cccccc}
+      \hline
+      线程数 & 1 & 2 & 4 & 8 & 16 \\
+      \hline
+      耗时（s） & 9.79 & 4.98 & 2.66 & 2.09 & 2.27 \\
+      \hline
+      加速比 & 1.00 & 1.97 & 3.68 & 4.69 & 4.32 \\
+      \hline
+    \end{tabular}
+  \end{table}
+
+  \section{实验总结}
+
+  \pagebreak
   \appendix
+  % 附录代码开启行号
+  \lstset{
+	  numbers=left,
+  }
+
   \section{附录：修复 Bug 后的基准代码}
-  \section{附录：重构基准代码}
+  \label{apd:fixed}
+  \lstinputlisting[language=C++]{../code/example.cpp}
+  \section{附录：重构后的基准代码}
+  \label{apd:refactored}
+  \lstinputlisting[language=C++]{../code/baseline.cpp}
   \section{附录：偶数优化}
+  \label{apd:no_even}
+  \lstinputlisting[language=C++]{../code/no_even.cpp}
   \section{附录：消除广播}
+  \label{apd:no_cast}
+  \lstinputlisting[language=C++]{../code/no_cast.cpp}
   \section{附录：优化 Cache}
+  \label{apd:better_cache}
+  \lstinputlisting[language=C++]{../code/better_cache.cpp}
+  \section{附录：最终代码}
+  \label{apd:final_version}
 \end{document}

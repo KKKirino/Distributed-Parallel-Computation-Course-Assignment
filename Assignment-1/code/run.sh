@@ -1,4 +1,4 @@
-for p in 2 4 8 16
+for p in 1 2 4 8 16
 do
   echo "Process Number: $p"
     echo "Example: "

@@ -1,0 +1,59 @@
+Process Number: 1
+Example:
+SIEVE (0)  15.762060
+Baseline:
+SIEVE (0)  15.631625
+No Even:
+SIEVE (0)  10.332768
+No Cast:
+SIEVE (0)  11.216134
+Better Cache:
+SIEVE (0)   9.794412
+
+Process Number: 2
+Example:
+SIEVE (0)  10.149071
+Baseline:
+SIEVE (0)  10.244475
+No Even:
+SIEVE (0)   6.560339
+No Cast:
+SIEVE (0)   6.823968
+Better Cache:
+SIEVE (0)   4.978283
+
+Process Number: 4
+Example:
+SIEVE (0)   8.764870
+Baseline:
+SIEVE (0)   8.574118
+No Even:
+SIEVE (0)   5.258500
+No Cast:
+SIEVE (0)   5.751353
+Better Cache:
+SIEVE (0)   2.661237
+
+Process Number: 8
+Example:
+SIEVE (0)   8.065379
+Baseline:
+SIEVE (0)   8.439389
+No Even:
+SIEVE (0)   5.003162
+No Cast:
+SIEVE (0)   4.881873
+Better Cache:
+SIEVE (0)   2.086183
+
+Process Number: 16
+Example:
+SIEVE (0)   8.325186
+Baseline:
+SIEVE (0)   8.561327
+No Even:
+SIEVE (0)   5.138825
+No Cast:
+SIEVE (0)   4.588776
+Better Cache:
+SIEVE (0)   2.266403

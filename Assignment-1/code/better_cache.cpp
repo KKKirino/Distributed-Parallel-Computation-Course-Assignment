@@ -4,17 +4,22 @@
 
 using namespace std;
 
-int solve(long low_range, long high_range, bool* marked, int mark_size, bool* sqn_mark, int sqn_size) {
+int solve(long low_range, long high_range, bool *marked,
+          int mark_size, bool *sqn_mark, int sqn_size)
+{
   long count = 0;
 
   memset(marked, 0, sizeof(bool) * mark_size); // 提前清零
 
-  for (int i = low_range; i < high_range; i += 1) {
-    if (marked[i - low_range]) exit(-1);
+  for (int i = low_range; i < high_range; i += 1)
+  {
+    if (marked[i - low_range])
+      exit(-1);
   }
 
   // 过滤所有的素数
-  for (long prime = 3; prime < sqn_size;) {
+  for (long prime = 3; prime < sqn_size;)
+  {
     // 确定本线程的开始素数
     long first = (low_range / prime) * prime;
     long offset = 0;
@@ -24,12 +29,13 @@ int solve(long low_range, long high_range, bool* marked, int mark_size, bool* sq
       offset = x - low_range;
       // 跳过没有在范围内的数字，以及素数本身
       if (x < low_range || x == prime || x % 2 == 0 || x % 3 == 0)
-        continue; // 跳过偶数标记
+        continue;         // 跳过偶数标记
       marked[offset] = 1; // TODO: 这里很耗时，访存时间很难优化
     }
 
     // 找到下一个素数
-    do {
+    do
+    {
       prime += 1 + (prime % 2); // 寻找素数时跳过偶数
     } while (prime < sqn_size && sqn_mark[prime]);
   }
@@ -88,9 +94,12 @@ int main(int argc, char *argv[])
   // 计算前 sqrt(n) 个素数
   int sqrtn = (int)sqrtl(n) + 1;
   bool *sqn_mark = new bool[sqrtn]();
-  for (int prime = 2; prime * prime < sqrtn; prime += 1) {
-    if (sqn_mark[prime]) continue;
-    for (int i = 2; i * prime < sqrtn; i += 1) {
+  for (int prime = 2; prime * prime < sqrtn; prime += 1)
+  {
+    if (sqn_mark[prime])
+      continue;
+    for (int i = 2; i * prime < sqrtn; i += 1)
+    {
       sqn_mark[i * prime] = 1;
     }
   }
@@ -98,13 +107,15 @@ int main(int argc, char *argv[])
   // 使用分块算法优化 cache 访存
   long seg_size = 1000000;
   bool *marked = new bool[seg_size](); // 标记数组
-  for (int i = low_range; i < high_range; i += seg_size) {
-    count += solve(i, min(high_range, i + seg_size), marked, seg_size, sqn_mark, sqrtn);
+  for (int i = low_range; i < high_range; i += seg_size)
+  {
+    count += solve(i, min(high_range, i + seg_size), marked,
+                   seg_size, sqn_mark, sqrtn);
   }
 
-
   // 求解所有素数个数和
-  MPI_Reduce(&count, &global_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&count, &global_count, 1, MPI_INT, MPI_SUM, 0,
+             MPI_COMM_WORLD);
 
   // 停止计时
   timer += MPI_Wtime();

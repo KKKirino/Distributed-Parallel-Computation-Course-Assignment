@@ -47,7 +47,6 @@ int main(int argc, char *argv[])
 
   bool *marked = new bool[proc_array_size](); // 标记数组
 
-  // 1. 直接从 3 开始进行计算
   for (long prime = 2; prime * prime <= n;)
   {
     // 确定本线程的开始素数
