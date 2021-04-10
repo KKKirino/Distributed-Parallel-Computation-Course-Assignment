@@ -4,18 +4,17 @@
 
 using namespace std;
 
-int main() {
-  int n = 1000000000 / 4;
+int main(int argc, char* argv[]) {
+  if (argc < 3) return printf("请指定 n 和 seg_size");
 
-  bool* arr = new bool[n]();
+  long n = atol(argv[1]);
+  long seg_size = atol(argv[2]);
 
-  time_t t = time(NULL);
+  long* arr = new long[seg_size]();
 
-  int ln = (int)log(log(n));
-
-  for (int j = 0; j < ln; j += 1) {
-    for (int i = 0; i < n; i += 1) {
-      arr[i] = i * j;
+  for (long j = 0; j < n; j += seg_size) {
+    for (long i = 0; i < seg_size; i += 1) {
+      if (arr[i]);
     }
   }
 

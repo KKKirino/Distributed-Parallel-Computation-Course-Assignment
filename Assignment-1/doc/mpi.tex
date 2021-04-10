@@ -10,6 +10,10 @@
   % 用于在代码内显示中文
   \usepackage{xeCJK}
   \setCJKmonofont[ExternalLocation=../../.template/]{STZHONGS.ttf}
+
+  \usepackage[font=small,labelfont=bf,tableposition=top]{caption}
+
+  \DeclareCaptionLabelFormat{andtable}{#1~#2  \&  \tablename~\thetable}
   
   %----------------------------------------------------------------------------------------
   %	ASSIGNMENT INFORMATION
@@ -161,8 +165,8 @@ size = high_value - low_value + 1;
         \addlegendentry{加速比}
       \end{axis}
     \end{tikzpicture}
-    \label{fig:baseline}
     \caption{基准代码在不同线程下的运行时间和加速比}
+    \label{fig:baseline}
   \end{figure}
 
   \begin{table}[h]
@@ -182,6 +186,7 @@ size = high_value - low_value + 1;
 
   我们分别在 $1, 2, 4, 8, 16$ 进程规模下运行了基准代码，并得到了程序运行时间和加速比，结果如图 \ref{fig:baseline} 所示，可以看到，当线程数量较少时，多线程可以有效减少运行时间，但是随着线程数增多，加速比并没有随着线程数量线性增长，这是由于基准代码的广播和线程同步机制，每完成一轮素数筛选，其余线程均需要等待线程 0 广播下一个素数，从而造成额外的时间开销。
 
+  \pagebreak
   \section{性能优化}
   \subsection{性能优化：去除偶数}
   我们使用对基线代码重构并在不同的地方对偶数进行过滤，主要有以下四处修改：
@@ -277,8 +282,8 @@ for (int i = low_range; i < high_range; i += 1 + (i % 2))
         \addlegendentry{加速比}
       \end{axis}
     \end{tikzpicture}
-    \label{fig:no_even}
     \caption{去除偶数后在不同线程下的运行时间和加速比}
+    \label{fig:no_even}
   \end{figure}
 
   \begin{table}[h]
@@ -300,7 +305,7 @@ for (int i = low_range; i < high_range; i += 1 + (i % 2))
 
   \subsection{性能优化：消除广播}
   在偶数优化后的代码基础上，我们在每个线程内预先地计算前 $\sqrt{n}$ 个素数，然后再对每个区间端进行筛选，从而免去了素数广播耗时，预计算部分为：
-  \begin{file}[baseline.cpp]
+  \begin{file}[no\_cast.cpp]
     \begin{lstlisting}[language=C++]
 // ...
 // 计算前 sqrt(n) 个素数
@@ -316,7 +321,7 @@ for (int prime = 2; prime * prime < sqrtn; prime += 1) {
     \end{lstlisting}
   \end{file}
   然后在寻找下一个素数时，只需要在 \verb|sqn_mark| 数组中寻找即可：
-  \begin{file}[baseline.cpp]
+  \begin{file}[no\_cast.cpp]
     \begin{lstlisting}[language=C++]
 // 找到下一个素数
 do {
@@ -367,8 +372,8 @@ do {
         \addlegendentry{加速比}
       \end{axis}
     \end{tikzpicture}
-    \label{fig:no_cast}
     \caption{消除广播后在不同线程下的运行时间和加速比}
+    \label{fig:no_cast}
   \end{figure}
 
   \begin{table}[h]
@@ -385,10 +390,65 @@ do {
       \hline
     \end{tabular}
   \end{table}
+
+  由于线性筛法的时间复杂度为 $O(n \log \log n)$ \footnote{证明见 \url{https://oi-wiki.org/math/sieve/#_6}。}，所以预计算部分引入的额外耗时为 $O(\sqrt{n} \log \log n)$ 级别，并不会对整体复杂度引起数量级的变化。
+
   图 \ref{fig:no_cast} 和表 \ref{tab:no_cast} 展示了消除广播后的运行时间和加速比。当线程数较少时，相对于优化前的代码，其运行耗时反而更久，其原因是预计算前 $\sqrt{N}$ 区间内的素数会引入额外耗时，而当线程数量增加后，避免广播同步带来的耗时减少抵消了预计算的耗时，总耗时得以下降，最终可以带来 10\% 的性能提升。
 
   \subsection{性能优化：Cache 优化}
   在偶数优化章节中，我们发现跳过偶数可以带来接近 40\% 的性能提升，进一步探究可以发现，整个算法最耗时的部分在于对 \verb|marked| 数组的访问，经过埋点计时发现，对 \verb|marked| 数组的访问耗时占了整个算法总耗时的 90\% 左右，所以通过优化 \verb|marked| 的访存，我们可以进一步提升程序性能。
+
+  我们编写了一段简单的程序来观察申请内存区域的大小与申请和访问耗时之间的关系，如下所示：
+  \begin{file}[test\_mem.cpp]
+    \begin{lstlisting}[language=C++]
+// 指定总循环次数和内存空间大小
+long n = atol(argv[1]);
+long seg_size = atol(argv[2]);
+
+long* arr = new long[seg_size]();
+
+for (long j = 0; j < n; j += seg_size) {
+  for (long i = 0; i < seg_size; i += 1) {
+    if (arr[i]);
+  }
+}
+  \end{lstlisting}
+  \end{file}
+
+  通过固定总访问次数，然后遍历空间大小，我们得到访问耗时和内存大小之间的数据趋势，图 \ref{tab:mem} 展示了详细的测试结果，我们发现随着 \verb|arr| 数组的增大，上述代码运行总耗时也在不断增加，而当申请的数组大小在 $10^8 - 10^9$ 级别时，耗时大幅增加。
+
+  \begin{table}[h]
+    \centering
+    \caption{不同大小的内存访问耗时}
+    \label{tab:mem}
+    \begin{tabular}{ccccccc}
+      \hline
+      数组大小 & $10^4$ & $10^5$ & $10^6$ & $10^7$ & $10^8$ & $10^9$ \\
+      \hline
+      总耗时（s） & 1.812 & 1.995 & 2.356 & 2.518 & 3.111 & 9.218 \\
+      \hline
+    \end{tabular}
+  \end{table}
+
+  由于本实验的算法运行在 $10^9$ 规模的数据上，尽管在 16 线程下，其申请的 \verb|marked| 数组大小也在 $10^8$ 级别，所以减小 \verb|marked| 数组大小可以有效降低运行耗时。
+
+  经过参数调优，我们发现当 \verb|marked| 数组的大小设置为 $10^6$ 时，可以在实验机器上得到最优耗时，当小于该值时，运行效率反而会下降，所以我们使用 $10^6$ 来作为最终的数组大小。
+
+  附录 \ref{apd:better_cache} 展示了进行 Cache 优化后的代码，其中核心代码为：
+
+  \begin{file}[better\_cache.cpp]
+    \begin{lstlisting}[language=C++]
+// 使用分块算法优化 cache 访存
+long seg_size = 1000000;
+bool *marked = new bool[seg_size](); // 标记数组
+for (int i = low_range; i < high_range; i += seg_size) {
+  count += solve(i, min(high_range, i + seg_size), marked,
+                  seg_size, sqn_mark, sqrtn);
+}
+  \end{lstlisting}
+  \end{file}
+
+  其中 \verb|solve| 函数根据预计算的素数数组来对指定区间的数字进行过滤，并返回该区间的素数个数，我们声明好固定大小的 \verb|marked| 数组，并在 \verb|solve| 函数中反复使用该数组，从而进一步降低算法运行耗时。
 
   \begin{figure}[h]
     \centering
@@ -433,15 +493,14 @@ do {
         \addlegendentry{加速比}
       \end{axis}
     \end{tikzpicture}
-    \label{fig:no_even}
     \caption{Cache 优化后在不同线程下的运行时间和加速比}
+    \label{fig:cache}
   \end{figure}
-
   \begin{table}[h]
     \centering
     \caption{Cache 优化后的性能数据}
-    \label{tab:env}
-    \begin{tabular}{cccccc}
+    \label{tab:cache}
+    \begin{tabular}[b]{cccccc}
       \hline
       线程数 & 1 & 2 & 4 & 8 & 16 \\
       \hline
@@ -452,6 +511,9 @@ do {
     \end{tabular}
   \end{table}
 
+  图 \ref{fig:cache} 和表 \ref{tab:cache} 展示了进行 Cache 优化后的结果，相对于优化之前，Cache 优化带来了超过 100\% 的性能提升，并且当线程数量小于 8 时，加速比可以近似地线性增加。当线程超过 8 时，我们发现程序运行效率反而会下降，这是因为实验机器的逻辑处理器为 8 个核心，超过 8 线程时，线程切换会引入额外的运行开销，从而增加耗时。
+
+  \pagebreak
   \section{实验总结}
 
   \pagebreak
