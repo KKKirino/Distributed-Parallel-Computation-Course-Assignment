@@ -16,12 +16,13 @@ int solve(long low_range, long high_range, char *marked,
   {
     // 确定本线程的开始素数
     long first = (low_range / prime) * prime;
-    long offset = 0;
 
+    // 跳过小于 low_range 的初始值、素数值以及偶数值
     while (first < low_range) first += prime;
-    if (first == prime) first += prime;
+    if (first % 2 == 0) first += prime;
 
-    for (int x = first; x < high_range; x += prime * (1 + x % 2))
+    // 由于保证了 first 是奇数，所以每次都跳素数的偶数倍
+    for (long x = first, step = prime * 2; x < high_range; x += step)
     {
       if (x != prime)
         marked[x - low_range] = 1;
@@ -30,11 +31,13 @@ int solve(long low_range, long high_range, char *marked,
     prime = sqn_mark[++ pi];
   }
 
-  // 保证从 3 开始计数
-  for (int i = max(5l, low_range); i < high_range; i += 1 + i % 2)
+  // 保证从 5 开始计数
+  long start = max(5l, low_range);
+  if (start % 2 == 0) start += 1;
+  for (long i = start; i < high_range; i += 2)
   {
     // 统计数字时同样跳过偶数
-    count += !marked[i - low_range] && (i % 2) && (i % 3);
+    count += !marked[i - low_range] && (i % 3);
   }
 
   return count;
@@ -65,9 +68,9 @@ int main(int argc, char *argv[])
   double timer = -MPI_Wtime(); // 计时开始
 
   // 计算每个线程掌管的数据段
-  long proc_size = n / pcount;             // 每个线程的尺寸
+  long proc_size = n / pcount + 1;             // 每个线程的尺寸
   long low_range = pid * proc_size;        // 线程负责的开始位置
-  long high_range = (pid + 1) * proc_size; // 线程负责的终止位置
+  long high_range = min(n, (pid + 1) * proc_size); // 线程负责的终止位置
   long proc_array_size = proc_size + 1;    // 线程标记数组大小
 
   // 限制线程数量在 sqrt(n) 以内，所以保证线程 0 可以获取到所有素数
@@ -95,6 +98,7 @@ int main(int argc, char *argv[])
     }
   }
 
+  // 得到更紧凑的素数表
   int wi = 0, ri = 2;
   while (ri < sqrtn) {
     if (!sqn_mark[ri]) {
@@ -102,18 +106,14 @@ int main(int argc, char *argv[])
     }
     ri += 1;
   }
-
   sqrtn = wi;
 
-  // timer += MPI_Wtime();
-  // printf("\n sqrt time: %f\n", timer);
-  // timer = -MPI_Wtime();
-
   // 使用分块算法优化 cache 访存
-  long seg_size = 1000000;
+  long seg_size = 500000;
   char *marked = new char[seg_size]; // 标记数组
-  for (int i = low_range; i < high_range; i += seg_size)
+  for (long i = low_range; i < high_range; i += seg_size)
   {
+    // if (i / seg_size % 100 == 0) cout << i << endl;
     count += solve(i, min(high_range, i + seg_size), marked,
                    seg_size, sqn_mark, sqrtn);
   }

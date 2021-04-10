@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #define MIN(a,b)  ((a)<(b)?(a):(b))
-#define CACHE_SIZE 35000000       /* 35MB */
+#define CACHE_SIZE 1000000       /* 35MB */
 
 
 int main(int argc, char *argv[])
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
     /* Print the results */
 
     if (!id) {
-        printf("There are %d primes less than or equal to %lld\n",
+        printf("There are %d primes less than or equal to %lu\n",
             global_count, n);
         printf("SIEVE (%d) %10.6f\n", p, elapsed_time);
     }
