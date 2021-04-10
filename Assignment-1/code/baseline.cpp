@@ -45,7 +45,8 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  bool *marked = new bool[proc_array_size](); // 标记数组
+  bool *marked = new bool[proc_array_size]; // 标记数组
+  memset(marked, 0, sizeof(marked));
 
   for (long prime = 2; prime * prime <= n;)
   {

@@ -4,18 +4,12 @@
 
 using namespace std;
 
-int solve(long low_range, long high_range, bool *marked,
-          int mark_size, bool *sqn_mark, int sqn_size)
+int solve(long low_range, long high_range, char *marked,
+          int mark_size, char *sqn_mark, int sqn_size)
 {
   long count = 0;
 
   memset(marked, 0, sizeof(bool) * mark_size); // 提前清零
-
-  for (int i = low_range; i < high_range; i += 1)
-  {
-    if (marked[i - low_range])
-      exit(-1);
-  }
 
   // 过滤所有的素数
   for (long prime = 3; prime < sqn_size;)
@@ -92,8 +86,8 @@ int main(int argc, char *argv[])
   }
 
   // 计算前 sqrt(n) 个素数
-  int sqrtn = (int)sqrtl(n) + 1;
-  bool *sqn_mark = new bool[sqrtn]();
+  int sqrtn = (int)sqrtl(high_range) + 1;
+  char *sqn_mark = (char *)malloc(sqrtn);
   for (int prime = 2; prime * prime < sqrtn; prime += 1)
   {
     if (sqn_mark[prime])
@@ -104,9 +98,14 @@ int main(int argc, char *argv[])
     }
   }
 
+  // timer += MPI_Wtime();
+  // printf("\n sqrt time: %f\n", timer);
+  // timer = -MPI_Wtime();
+
   // 使用分块算法优化 cache 访存
   long seg_size = 1000000;
-  bool *marked = new bool[seg_size](); // 标记数组
+  char *marked = (char *)malloc(seg_size); // 标记数组
+  memset(marked, 0, seg_size * sizeof(bool));
   for (int i = low_range; i < high_range; i += seg_size)
   {
     count += solve(i, min(high_range, i + seg_size), marked,
