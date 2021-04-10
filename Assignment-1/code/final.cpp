@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #define MIN(a,b)  ((a)<(b)?(a):(b))
-#define CACHE_SIZE 1000000       /* 35MB */
+#define CACHE_SIZE 35000000       /* 35MB */
 
 
 int main(int argc, char *argv[])

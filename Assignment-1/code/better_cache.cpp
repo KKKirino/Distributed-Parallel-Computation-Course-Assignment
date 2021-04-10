@@ -12,19 +12,20 @@ int solve(long low_range, long high_range, char *marked,
   memset(marked, 0, sizeof(bool) * mark_size); // 提前清零
 
   // 过滤所有的素数
-  for (long prime = 3; prime < sqn_size;)
+  for (long prime = 5; prime < sqn_size;)
   {
     // 确定本线程的开始素数
     long first = (low_range / prime) * prime;
     long offset = 0;
 
-    for (int x = first; x < high_range; x += prime)
+    while (first < low_range) first += prime;
+    if (first == prime) first += prime;
+
+    for (int x = first; x < high_range; x += prime * (1 + x % 2))
     {
-      offset = x - low_range;
       // 跳过没有在范围内的数字，以及素数本身
-      if (x < low_range || x == prime || x % 2 == 0 || x % 3 == 0)
-        continue;         // 跳过偶数标记
-      marked[offset] = 1; // TODO: 这里很耗时，访存时间很难优化
+      if (x != prime)
+        marked[x - low_range] = 1;
     }
 
     // 找到下一个素数
@@ -35,11 +36,13 @@ int solve(long low_range, long high_range, char *marked,
   }
 
   // 保证从 3 开始计数
-  for (int i = max(5l, low_range); i < high_range; i += 1)
+  for (int i = max(5l, low_range); i < high_range; i += 1 + i % 2)
   {
     // 统计数字时同样跳过偶数
     count += !marked[i - low_range] && (i % 2) && (i % 3);
   }
+
+  // count -= low_range % 2 == 0;
 
   return count;
 }
@@ -105,7 +108,6 @@ int main(int argc, char *argv[])
   // 使用分块算法优化 cache 访存
   long seg_size = 1000000;
   char *marked = (char *)malloc(seg_size); // 标记数组
-  memset(marked, 0, seg_size * sizeof(bool));
   for (int i = low_range; i < high_range; i += seg_size)
   {
     count += solve(i, min(high_range, i + seg_size), marked,
