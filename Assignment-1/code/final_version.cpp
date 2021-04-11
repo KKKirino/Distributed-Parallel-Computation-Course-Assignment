@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
   sqrtn = wi;
 
   // 使用分块算法优化 cache 访存
-  long seg_size = 500000;
+  long seg_size = 1000000;
   char *marked = new char[seg_size]; // 标记数组
   for (long i = low_range; i < high_range; i += seg_size)
   {
